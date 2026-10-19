@@ -45,7 +45,7 @@ inputs:
     default: ""
   prune-cache:
     description: "Prune cache before saving."
-    default: "true"
+    default: "false"
   ignore-nothing-to-cache:
     description: "Ignore when nothing is found to cache."
     default: "false"
