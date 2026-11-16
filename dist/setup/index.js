@@ -121463,7 +121463,8 @@ function handleMatchResult(matchedKey, primaryKey) {
     }
     core.saveState(exports.STATE_CACHE_MATCHED_KEY, matchedKey);
     core.info(`uv cache restored from GitHub Actions cache with key: ${matchedKey}`);
-    core.setOutput("cache-hit", true);
+    // cache-hit stays an exact-match signal; a restore-keys match restores files but is not a hit.
+    core.setOutput("cache-hit", matchedKey === primaryKey);
 }
 
 
