@@ -121390,11 +121390,11 @@ exports.STATE_CACHE_KEY = "cache-key";
 exports.STATE_CACHE_MATCHED_KEY = "cache-matched-key";
 const CACHE_VERSION = "1";
 async function restoreCache() {
-    const cacheKey = await computeKeys();
+    const { cacheKey, restoreKeys } = await computeKeys();
     let matchedKey;
     core.info(`Trying to restore uv cache from GitHub Actions cache with key: ${cacheKey}`);
     try {
-        matchedKey = await cache.restoreCache([inputs_1.cacheLocalPath], cacheKey);
+        matchedKey = await cache.restoreCache([inputs_1.cacheLocalPath], cacheKey, restoreKeys);
     }
     catch (err) {
         const message = err.message;
@@ -121421,7 +121421,11 @@ async function computeKeys() {
     const pythonVersion = await getPythonVersion();
     const platform = await (0, platforms_1.getPlatform)();
     const pruned = inputs_1.pruneCache ? "-pruned" : "";
-    return `setup-uv-${CACHE_VERSION}-${(0, platforms_1.getArch)()}-${platform}-${pythonVersion}${pruned}${cacheDependencyPathHash}${suffix}`;
+    const keyPrefix = `setup-uv-${CACHE_VERSION}-${(0, platforms_1.getArch)()}-${platform}-${pythonVersion}${pruned}-`;
+    const cacheKey = `setup-uv-${CACHE_VERSION}-${(0, platforms_1.getArch)()}-${platform}-${pythonVersion}${pruned}${cacheDependencyPathHash}${suffix}`;
+    // The uv cache is content addressed, so an entry saved for an older lockfile still holds most of the
+    // wheels. Without this, any change to uv.lock or pyproject.toml misses the cache and downloads everything.
+    return { cacheKey, restoreKeys: inputs_1.restoreKeysFallback ? [keyPrefix] : [] };
 }
 async function getPythonVersion() {
     if (inputs_1.pythonVersion !== "") {
@@ -125132,7 +125136,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.githubToken = exports.serverUrl = exports.toolDir = exports.toolBinDir = exports.ignoreEmptyWorkdir = exports.ignoreNothingToCache = exports.pruneCache = exports.cacheDependencyGlob = exports.cacheLocalPath = exports.cacheSuffix = exports.enableCache = exports.checkSum = exports.workingDirectory = exports.activateEnvironment = exports.pythonVersion = exports.version = void 0;
+exports.githubToken = exports.serverUrl = exports.toolDir = exports.toolBinDir = exports.ignoreEmptyWorkdir = exports.ignoreNothingToCache = exports.restoreKeysFallback = exports.pruneCache = exports.cacheDependencyGlob = exports.cacheLocalPath = exports.cacheSuffix = exports.enableCache = exports.checkSum = exports.workingDirectory = exports.activateEnvironment = exports.pythonVersion = exports.version = void 0;
 const core = __importStar(__nccwpck_require__(37484));
 const node_path_1 = __importDefault(__nccwpck_require__(76760));
 exports.version = core.getInput("version");
@@ -125145,6 +125149,7 @@ exports.cacheSuffix = core.getInput("cache-suffix") || "";
 exports.cacheLocalPath = getCacheLocalPath();
 exports.cacheDependencyGlob = core.getInput("cache-dependency-glob");
 exports.pruneCache = core.getInput("prune-cache") === "true";
+exports.restoreKeysFallback = core.getInput("restore-keys-fallback") !== "false";
 exports.ignoreNothingToCache = core.getInput("ignore-nothing-to-cache") === "true";
 exports.ignoreEmptyWorkdir = core.getInput("ignore-empty-workdir") === "true";
 exports.toolBinDir = getToolBinDir();

@@ -47,6 +47,13 @@ inputs:
   cache-local-path:
     description: "Local path to store the cache."
     default: ""
+  restore-keys-fallback:
+    description:
+      "When the exact cache key is missing (the lockfile changed), restore the
+      newest uv cache saved for the same platform and Python version, then save
+      a new entry under the exact key. Set to false to restore only the exact
+      key."
+    default: "true"
   prune-cache:
     description: "Prune cache before saving."
     default: "true"

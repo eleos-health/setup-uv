@@ -5,6 +5,7 @@ import {
   cacheLocalPath,
   cacheSuffix,
   pruneCache,
+  restoreKeysFallback,
   pythonVersion as pythonVersionInput,
   workingDirectory,
 } from "../utils/inputs";
@@ -17,14 +18,18 @@ export const STATE_CACHE_MATCHED_KEY = "cache-matched-key";
 const CACHE_VERSION = "1";
 
 export async function restoreCache(): Promise<void> {
-  const cacheKey = await computeKeys();
+  const { cacheKey, restoreKeys } = await computeKeys();
 
   let matchedKey: string | undefined;
   core.info(
     `Trying to restore uv cache from GitHub Actions cache with key: ${cacheKey}`,
   );
   try {
-    matchedKey = await cache.restoreCache([cacheLocalPath], cacheKey);
+    matchedKey = await cache.restoreCache(
+      [cacheLocalPath],
+      cacheKey,
+      restoreKeys,
+    );
   } catch (err) {
     const message = (err as Error).message;
     core.warning(message);
@@ -37,7 +42,10 @@ export async function restoreCache(): Promise<void> {
   handleMatchResult(matchedKey, cacheKey);
 }
 
-async function computeKeys(): Promise<string> {
+async function computeKeys(): Promise<{
+  cacheKey: string;
+  restoreKeys: string[];
+}> {
   let cacheDependencyPathHash = "-";
   if (cacheDependencyGlob !== "") {
     core.info(
@@ -57,7 +65,11 @@ async function computeKeys(): Promise<string> {
   const pythonVersion = await getPythonVersion();
   const platform = await getPlatform();
   const pruned = pruneCache ? "-pruned" : "";
-  return `setup-uv-${CACHE_VERSION}-${getArch()}-${platform}-${pythonVersion}${pruned}${cacheDependencyPathHash}${suffix}`;
+  const keyPrefix = `setup-uv-${CACHE_VERSION}-${getArch()}-${platform}-${pythonVersion}${pruned}-`;
+  const cacheKey = `setup-uv-${CACHE_VERSION}-${getArch()}-${platform}-${pythonVersion}${pruned}${cacheDependencyPathHash}${suffix}`;
+  // The uv cache is content addressed, so an entry saved for an older lockfile still holds most of the
+  // wheels. Without this, any change to uv.lock or pyproject.toml misses the cache and downloads everything.
+  return { cacheKey, restoreKeys: restoreKeysFallback ? [keyPrefix] : [] };
 }
 
 async function getPythonVersion(): Promise<string> {

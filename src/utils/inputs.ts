@@ -11,6 +11,8 @@ export const cacheSuffix = core.getInput("cache-suffix") || "";
 export const cacheLocalPath = getCacheLocalPath();
 export const cacheDependencyGlob = core.getInput("cache-dependency-glob");
 export const pruneCache = core.getInput("prune-cache") === "true";
+export const restoreKeysFallback =
+  core.getInput("restore-keys-fallback") !== "false";
 export const ignoreNothingToCache =
   core.getInput("ignore-nothing-to-cache") === "true";
 export const ignoreEmptyWorkdir =
