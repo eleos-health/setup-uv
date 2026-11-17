@@ -121389,8 +121389,8 @@ const exec = __importStar(__nccwpck_require__(95236));
 exports.STATE_CACHE_KEY = "cache-key";
 exports.STATE_CACHE_MATCHED_KEY = "cache-matched-key";
 const CACHE_VERSION = "1";
-async function restoreCache() {
-    const { cacheKey, restoreKeys } = await computeKeys();
+async function restoreCache(uvVersion) {
+    const { cacheKey, restoreKeys } = await computeKeys(uvVersion);
     let matchedKey;
     core.info(`Trying to restore uv cache from GitHub Actions cache with key: ${cacheKey}`);
     try {
@@ -121405,7 +121405,7 @@ async function restoreCache() {
     core.saveState(exports.STATE_CACHE_KEY, cacheKey);
     handleMatchResult(matchedKey, cacheKey);
 }
-async function computeKeys() {
+async function computeKeys(uvVersion) {
     let cacheDependencyPathHash = "-";
     if (inputs_1.cacheDependencyGlob !== "") {
         core.info(`Searching files using cache dependency glob: ${inputs_1.cacheDependencyGlob.split("\n").join(",")}`);
@@ -121421,8 +121421,11 @@ async function computeKeys() {
     const pythonVersion = await getPythonVersion();
     const platform = await (0, platforms_1.getPlatform)();
     const pruned = inputs_1.pruneCache ? "-pruned" : "";
-    const keyPrefix = `setup-uv-${CACHE_VERSION}-${(0, platforms_1.getArch)()}-${platform}-${pythonVersion}${pruned}-`;
-    const cacheKey = `setup-uv-${CACHE_VERSION}-${(0, platforms_1.getArch)()}-${platform}-${pythonVersion}${pruned}${cacheDependencyPathHash}${suffix}`;
+    // uv cannot reuse cache entries saved by another uv version, so the version is part of the key and of the
+    // fallback prefix. Without it a new uv release restores the old entry on an exact hit, ignores it, and never saves a new one.
+    const keyBase = `setup-uv-${CACHE_VERSION}-${(0, platforms_1.getArch)()}-${platform}-uv${uvVersion}-${pythonVersion}${pruned}`;
+    const keyPrefix = `${keyBase}-`;
+    const cacheKey = `${keyBase}${cacheDependencyPathHash}${suffix}`;
     // The uv cache is content addressed, so an entry saved for an older lockfile still holds most of the
     // wheels. Without this, any change to uv.lock or pyproject.toml misses the cache and downloads everything.
     return { cacheKey, restoreKeys: inputs_1.restoreKeysFallback ? [keyPrefix] : [] };
@@ -124888,7 +124891,7 @@ async function run() {
         core.setOutput("uv-version", setupResult.version);
         core.info(`Successfully installed uv version ${setupResult.version}`);
         if (inputs_1.enableCache) {
-            await (0, restore_cache_1.restoreCache)();
+            await (0, restore_cache_1.restoreCache)(setupResult.version);
         }
         process.exit(0);
     }

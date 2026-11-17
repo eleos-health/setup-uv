@@ -1,0 +1,44 @@
+name: uv version key proof (temporary)
+on:
+  push:
+    branches: [ER-43963-restore-keys]
+    paths: [.github/workflows/uv-key-proof.yml]
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          version: "0.13.8"
+          enable-cache: true
+          prune-cache: false
+          cache-dependency-glob: uvtest/uv.lock
+          cache-suffix: keyproof
+      - run: cd uvtest && uv --version && uv sync -v 2>&1 | tee /tmp/sync.log | grep -E "Prepared|Downloading" | sed 's/^/SEED /' ; echo "SEED downloads=$(grep -c Downloading /tmp/sync.log)"
+  cross9:
+    needs: seed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          version: "0.13.9"
+          enable-cache: true
+          prune-cache: false
+          cache-dependency-glob: uvtest/uv.lock
+          cache-suffix: keyproof
+      - run: cd uvtest && uv --version && uv sync -v 2>&1 | tee /tmp/sync.log | grep -E "Prepared" | sed 's/^/CROSS9 /' ; echo "CROSS9 downloads=$(grep -c Downloading /tmp/sync.log)"
+  after9:
+    needs: cross9
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          version: "0.13.9"
+          enable-cache: true
+          prune-cache: false
+          cache-dependency-glob: uvtest/uv.lock
+          cache-suffix: keyproof
+      - run: cd uvtest && uv --version && uv sync -v 2>&1 | tee /tmp/sync.log | grep -E "Prepared" | sed 's/^/AFTER9 /' ; echo "AFTER9 downloads=$(grep -c Downloading /tmp/sync.log)"
