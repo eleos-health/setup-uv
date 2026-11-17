@@ -1,5 +1,0 @@
-[project]
-name = "uvtest"
-version = "0.0.0"
-requires-python = ">=3.11"
-dependencies = ["pyarrow", "duckdb", "mypy", "ruff", "boto3", "botocore"]
