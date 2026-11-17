@@ -5,6 +5,7 @@ import {
   cacheLocalPath,
   cacheSuffix,
   pruneCache,
+  restoreKeysFallback,
   pythonVersion as pythonVersionInput,
   workingDirectory,
 } from "../utils/inputs";
@@ -16,15 +17,19 @@ export const STATE_CACHE_KEY = "cache-key";
 export const STATE_CACHE_MATCHED_KEY = "cache-matched-key";
 const CACHE_VERSION = "1";
 
-export async function restoreCache(): Promise<void> {
-  const cacheKey = await computeKeys();
+export async function restoreCache(uvVersion: string): Promise<void> {
+  const { cacheKey, restoreKeys } = await computeKeys(uvVersion);
 
   let matchedKey: string | undefined;
   core.info(
     `Trying to restore uv cache from GitHub Actions cache with key: ${cacheKey}`,
   );
   try {
-    matchedKey = await cache.restoreCache([cacheLocalPath], cacheKey);
+    matchedKey = await cache.restoreCache(
+      [cacheLocalPath],
+      cacheKey,
+      restoreKeys,
+    );
   } catch (err) {
     const message = (err as Error).message;
     core.warning(message);
@@ -37,7 +42,10 @@ export async function restoreCache(): Promise<void> {
   handleMatchResult(matchedKey, cacheKey);
 }
 
-async function computeKeys(): Promise<string> {
+async function computeKeys(uvVersion: string): Promise<{
+  cacheKey: string;
+  restoreKeys: string[];
+}> {
   let cacheDependencyPathHash = "-";
   if (cacheDependencyGlob !== "") {
     core.info(
@@ -57,7 +65,14 @@ async function computeKeys(): Promise<string> {
   const pythonVersion = await getPythonVersion();
   const platform = await getPlatform();
   const pruned = pruneCache ? "-pruned" : "";
-  return `setup-uv-${CACHE_VERSION}-${getArch()}-${platform}-${pythonVersion}${pruned}${cacheDependencyPathHash}${suffix}`;
+  // uv cannot reuse cache entries saved by another uv version, so the version is part of the key and of the
+  // fallback prefix. Without it a new uv release restores the old entry on an exact hit, ignores it, and never saves a new one.
+  const keyBase = `setup-uv-${CACHE_VERSION}-${getArch()}-${platform}-uv${uvVersion}-${pythonVersion}${pruned}`;
+  const keyPrefix = `${keyBase}-`;
+  const cacheKey = `${keyBase}${cacheDependencyPathHash}${suffix}`;
+  // The uv cache is content addressed, so an entry saved for an older lockfile still holds most of the
+  // wheels. Without this, any change to uv.lock or pyproject.toml misses the cache and downloads everything.
+  return { cacheKey, restoreKeys: restoreKeysFallback ? [keyPrefix] : [] };
 }
 
 async function getPythonVersion(): Promise<string> {
@@ -105,5 +120,6 @@ function handleMatchResult(
   core.info(
     `uv cache restored from GitHub Actions cache with key: ${matchedKey}`,
   );
-  core.setOutput("cache-hit", true);
+  // cache-hit stays an exact-match signal; a restore-keys match restores files but is not a hit.
+  core.setOutput("cache-hit", matchedKey === primaryKey);
 }
